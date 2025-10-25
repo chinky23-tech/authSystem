@@ -1,70 +1,97 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const session = require('express-session');
-const bcrypt = require('bcrypt');
-const path = require('path');
+// server.js
+const express = require("express");
+const mongoose = require("mongoose");
+const session = require("express-session");
+const bcrypt = require("bcrypt");
+const path = require("path");
+require("dotenv").config();
 
-require('dotenv').config();
+// ✅ Import User model
+const User = require("./models/user");
 
-const user = require('./models/user');
 const app = express();
 
-//middleware
-app.use(express.urlencoded({extended: true}));
-app.use(express.static(path.join(__dirname, 'public')));
+// Middleware
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
+
 app.use(
-    session({
-    secret: 'mySecretKey',
+  session({
+    secret: "mySecretKey", // change this to a strong secret in production
     resave: false,
-    saveUninitialized: true,
-})
+    saveUninitialized: false,
+  })
 );
-// mongodb connection
+
+// MongoDB connection (local)
 mongoose
-.connect(process.env.MONGO_URI)
-.then(() => console.log('MongoDB Connected'))
-.catch((err) => console.log(err));
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => console.log(err));
 
-//routes
-app.get('/' , (req,res) => {
-    res.sendFile(path.join(__dirname, 'views', 'login.html'));
+// Routes
+
+// Home (Login page)
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
-app.get('/register', (req, res) => {
-res.sendFile(path.join(__dirname, 'views', 'resgister.html'));
+// Register page
+app.get("/register", (req, res) => {
+  res.sendFile(path.join(__dirname, "views", "register.html"));
 });
 
-app.post('/register', async( req, res) => {
-const {username, password} = req.body;
-const existingUser = await User.findOne({ username});
-if(existingUser) return res.send('User already exists');
-const hashedPassword = await  bcrypt.hash(password, 10);
-await User.create({username , password: hashedPassword});
-res.redirect('/');
+// Register POST
+app.post("/register", async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const existingUser = await User.findOne({ username });
+    if (existingUser) return res.send("⚠️ User already exists");
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await User.create({ username, password: hashedPassword });
+
+    res.redirect("/");
+  } catch (err) {
+    console.log(err);
+    res.send("❌ Error registering user");
+  }
 });
 
-app.post('/login', async (req, res) => {
-const { username , password} = req.body;
-const user = await User.findOne({ username});
-if(!user) return res.send('Invalid username or password');
- const isMatch = await bcrypt.compare(password, user.password);
- if(!isMatch) return res.send('Invalid username or password');
+// Login POST
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
 
- req.session.user = user;
- res.redirect('/dashboard');
+  try {
+    const user = await User.findOne({ username });
+    if (!user) return res.send("❌ Invalid username or password");
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.send("❌ Invalid username or password");
+
+    // Save user session
+    req.session.user = user;
+    res.redirect("/dashboard");
+  } catch (err) {
+    console.log(err);
+    res.send("❌ Error logging in");
+  }
 });
 
-app.get('/dashboard' , (req, res) => {
-if(!req.session.user) return res.redirect('/');
-res.sendFile(path.join(__dirname, 'views', 'dashboard.html'));
+// Dashboard (protected)
+app.get("/dashboard", (req, res) => {
+  if (!req.session.user) return res.redirect("/");
+  res.sendFile(path.join(__dirname, "views", "dashboard.html"));
 });
 
-app.get('/logout', (req, res) => {
-    req.session.destroy(() => {
- res.redirect('/');
-    });
+// Logout
+app.get("/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.redirect("/");
+  });
 });
 
-//start server
-const PORT = 3000;
-app.listen(PORT, () => console.log(`server running at http://localhost:${PORT}`));
+// Start server
+const PORT = 3030;
+app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
